@@ -1,8 +1,8 @@
 @ECHO OFF
 SETLOCAL EnableDelayedExpansion
 
-REM Get program start time to calculate total execution time on program end
-SET StartTime=%time%
+REM Get the program start time to calculate the 
+SET StartTime=%TIME%
 
 REM Check if current Windows version is supported
 CALL :CheckWindowsVersion
@@ -21,6 +21,7 @@ SET DestDir="C:\BaBackup"
 SET TempDir=%TEMP%\BaBackup_%DateTime%
 SET LogDir=%LOCALAPPDATA%\BaBackup
 SET LogFile="%LogDir%\BaBackup_%DateTime%.log"
+SET /A FileBackupCount=0
 
 REM Make sure the log output folder exists and is writable by the user
 IF NOT EXIST %LogDir%\ (
@@ -58,9 +59,12 @@ CALL :ValidateConfig "%ProgramDir%%ConfigFileName%"
 REM Backup the sources
 CALL :RoboBackup "%ProgramDir%%ConfigFileName%"
 
-REM Create a compressed archive (7z format) of the backup
-CALL :LogUtil "INFO" "Compressing backup..."
-.\bin\7za.exe a -t7z -mmt=2 -bso1 -bse1 -bsp1 %DestDir%\BaBackup_%DateTime%.7z %TempDir% | .\bin\tee.bat %LogFile% 1
+REM Create a compressed archive (7z format) of the backup,
+REM if at least one file or folder has been copied successfully
+IF NOT %FileBackupCount% EQU 0 (
+	CALL :LogUtil "INFO" "Compressing backup..."
+	.\bin\7za.exe a -t7z -mmt=2 -bso1 -bse1 -bsp1 %DestDir%\BaBackup_%DateTime%.7z %TempDir% | .\bin\tee.bat %LogFile% 1
+)
 
 REM Delete the temp folder
 CALL :LogUtil "INFO" "Deleting temporary files and folders..."
@@ -68,7 +72,7 @@ RD /S /Q "%TempDir%" | .\bin\tee.bat %LogFile% 1
 
 REM Program end
 CALL :CalcProgramExecTime
-CALL :LogUtil "INFO" "Backup completed successfully^^!"
+CALL :LogUtil "INFO" "Backup completed successfully, number of files and folders backuped up: %FileBackupCount%"
 
 ENDLOCAL
 EXIT /B 0
@@ -123,16 +127,18 @@ REM Get the system region-independent date and time with UnxUtils date.exe (e.g.
 	EXIT /B 0
 )
 
-REM Validate the calling argument:
-REM Must not be an empty string (first check)
-REM Must be a txt file (second and third check)
-REM Must not contain invalid characters (fourth check)
+REM Validate the calling argument
 REM Source: https://www.robvanderwoude.com/battech_inputvalidation_commandline.php#ParameterFiles
-:ValidateConfig <ConfigFilePath> (
+:ValidateConfig <ConfigFilePath> ( 
     IF NOT EXIST "%~1" (
         CALL :LogUtil "FATAL" "filelist.txt does not exist, aborting..."
         GOTO :Error
     )
+
+	IF %~z1==0 (
+        CALL :LogUtil "FATAL" "filelist.txt is empty, aborting..."
+        GOTO :Error
+	)
 
     FINDSTR /R "& ' `" "%~1" > NUL
     IF NOT ERRORLEVEL 1 (
@@ -159,19 +165,27 @@ REM Copy each dir or file contained in the array to the destination (second loop
 		CALL :IsDir !array[%%i]!
 		IF !ERRORLEVEL! EQU 0 (
 			CALL :GetFolderName FolderName !array[%%i]!
-			CALL ROBOCOPY !array[%%i]! "%TempDir%\!FolderName!" /S /E /Z /FFT /R:5 /TBD /MT:16 /V /FP /NP /NJH /NJS | .\bin\tee.bat %LogFile% 1
-		) ELSE (
+			CALL ROBOCOPY !array[%%i]! "%TempDir%\!FolderName!" /S /E /Z /FFT /R:5 /TBD /MT:16 /V /NS /NC /NP /NJH /NJS | .\bin\tee.bat %LogFile% 1
+			REM Increment counter only on successful copy
+			IF !ERRORLEVEL! LSS 8 SET /A FileBackupCount+=1
+		) ELSE IF !ERRORLEVEL! EQU 1 (
 			CALL XCOPY !array[%%i]! %TempDir% | .\bin\tee.bat %LogFile% 1
+			SET /A FileBackupCount+=1
+		) ELSE (
+			CALL :LogUtil "ERROR" "Backup of "!array[%%i]!" failed, skipping..."
 		)
 	)
     EXIT /B 0
 )
 
+REM Check if the input path exists and is a file (exit code 1),
+REM exists and is a folder (exit code 0) or is not a valid path (exit code 2)
 REM Source: https://stackoverflow.com/a/143935
 : IsDir <Path> (
-	FOR /F "delims=" %%i IN ("%~1") DO SET MYPATH="%%~si"
-	PUSHD %MYPATH% 2>NUL
+	FOR /F "delims=" %%i IN ("%~1") DO SET MyPath="%%~si"
+	PUSHD %MyPath% > NUL 2> NUL
 	IF ERRORLEVEL 1 (
+		IF NOT EXIST %MyPath% EXIT /B 2
 		EXIT /B 1
 	) ELSE (
 		POPD
@@ -189,7 +203,7 @@ REM "C:\Users\Test\Desktop\New folder - Copy" will output "New Folder - Copy"
 REM Calculate the program execution time
 REM Source: https://stackoverflow.com/a/6209392
 :CalcProgramExecTime (
-	SET EndTime=%time%
+	SET EndTime=%TIME%
 
 	FOR /F "tokens=1-4 delims=:.," %%a IN ("%StartTime%") DO (
 		SET start_h=%%a
@@ -208,18 +222,12 @@ REM Source: https://stackoverflow.com/a/6209392
 	SET /A mins=%end_m%-%start_m%
 	SET /A secs=%end_s%-%start_s%
 	SET /A ms=%end_ms%-%start_ms%
-	IF %ms% LSS 0 SET /A secs = %secs% - 1 & SET /A ms = 100%ms%
-	if %secs% LSS 0 SET /A mins = %mins% - 1 & SET /A secs = 60%secs%
-	if %mins% LSS 0 SET /A hours = %hours% - 1 & SET /A mins = 60%mins%
-	if %hours% LSS 0 SET /A hours = 24%hours%
+	IF %ms% LSS 0 SET /A secs=%secs% - 1 & SET /A ms=100%ms%
+	if %secs% LSS 0 SET /A mins=%mins% - 1 & SET /A secs=60%secs%
+	if %mins% LSS 0 SET /A hours=%hours% - 1 & SET /A mins=60%mins%
+	if %hours% LSS 0 SET /A hours=24%hours%
 	if 1%ms% LSS 100 SET ms=0%ms%
 
-	REM SET "mins=0%mins%"
-	REM SET "mins=%mins:~-2%"
-	REM SET "secs=0%secs%"
-	REM SET "secs=%secs:~-2%"
-	REM SET "ms=0%ms%"
-	REM SET "ms=%ms:~-2%"
 	CALL :LogUtil "INFO" "Total backup time: %hours% hours, %mins% minutes, %secs% seconds"
 	EXIT /B 0
 )
@@ -231,7 +239,7 @@ REM Both args need to be strings, e.g. CALL :LogUtil "INFO" "Hello World"
 REM Source: https://stackoverflow.com/a/10719322
 :LogUtil <Type> <Description> (
 	ECHO.| .\bin\tee.bat %LogFile% 1
-    ECHO %DATE% %TIME:~0,-3% %~1 : %~2| .\bin\tee.bat %LogFile% 1
+    ECHO %DATE% %TIME:~0,-3% %~1 : %~2 | .\bin\tee.bat %LogFile% 1
     EXIT /B 0
 )
 
