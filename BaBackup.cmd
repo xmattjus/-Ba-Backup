@@ -1,6 +1,9 @@
 @ECHO OFF
 SETLOCAL EnableDelayedExpansion
 
+REM Get program start time to calculate total execution time on program end
+SET StartTime=%time%
+
 REM Check if current Windows version is supported
 CALL :CheckWindowsVersion
 
@@ -11,9 +14,9 @@ REM Get the current system date and time
 CALL :GetDateTime DateTime
 
 REM Program variables
-SET ProgName=[Ba]Backup V0.8.0
+SET ProgName="[Ba]Backup V0.8.1"
 SET ProgramDir=%~dp0
-SET ConfigFileName=config.txt
+SET ConfigFileName=filelist.txt
 SET DestDir="C:\BaBackup"
 SET TempDir=%TEMP%\BaBackup_%DateTime%
 SET LogDir=%LOCALAPPDATA%\BaBackup
@@ -29,7 +32,7 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 REM Log file header
-CALL :LogUtil "INFO" "%ProgName%"
+CALL :LogUtil "INFO" "%ProgName:~1,-1%"
 
 REM Make sure the destination folder exists and is writable by the user
 IF NOT EXIST %DestDir%\ (
@@ -64,7 +67,8 @@ CALL :LogUtil "INFO" "Deleting temporary files and folders..."
 RD /S /Q "%TempDir%" | .\bin\tee.bat %LogFile% 1
 
 REM Program end
-CALL :LogUtil "INFO" "Backup completed"
+CALL :CalcProgramExecTime
+CALL :LogUtil "INFO" "Backup completed successfully^^!"
 
 ENDLOCAL
 EXIT /B 0
@@ -80,7 +84,6 @@ REM Source: https://stackoverflow.com/a/25978837
 	ECHO.
 	ECHO %DATE% %TIME:~0,-3% FATAL : Unsupported Windows version detected, aborting...
 	GOTO :Error
-
 )
 
 REM Check if the required system programs are available
@@ -110,7 +113,6 @@ REM Check if the required system programs are available
         GOTO :Error
     )
     EXIT /B 0
-
 )
 
 REM Get the system region-independent date and time with UnxUtils date.exe (e.g. 20200831_103029)
@@ -119,7 +121,6 @@ REM Get the system region-independent date and time with UnxUtils date.exe (e.g.
 		SET %~1=%%i
 	)
 	EXIT /B 0
-
 )
 
 REM Validate the calling argument:
@@ -129,17 +130,16 @@ REM Must not contain invalid characters (fourth check)
 REM Source: https://www.robvanderwoude.com/battech_inputvalidation_commandline.php#ParameterFiles
 :ValidateConfig <ConfigFilePath> (
     IF NOT EXIST "%~1" (
-        CALL :LogUtil "FATAL" "Config file does not exist, aborting..."
+        CALL :LogUtil "FATAL" "filelist.txt does not exist, aborting..."
         GOTO :Error
     )
 
     FINDSTR /R "& ' `" "%~1" > NUL
     IF NOT ERRORLEVEL 1 (
-		CALL :LogUtil "FATAL" "Invalid characters found in the config file, aborting..."
+		CALL :LogUtil "FATAL" "Invalid characters found in filelist.txt, aborting..."
 		GOTO :Error
     )
     EXIT /B 0
-
 )
 
 REM Map each line of the config file to a string array element (first loop) 
@@ -165,7 +165,6 @@ REM Copy each dir or file contained in the array to the destination (second loop
 		)
 	)
     EXIT /B 0
-
 )
 
 REM Source: https://stackoverflow.com/a/143935
@@ -178,7 +177,6 @@ REM Source: https://stackoverflow.com/a/143935
 		POPD
 		EXIT /B 0
 	)
-
 )
 
 REM Get the folder name from an expanded path, e.g. 
@@ -186,7 +184,44 @@ REM "C:\Users\Test\Desktop\New folder - Copy" will output "New Folder - Copy"
 :GetFolderName <ResultVar> <PathVar> (
     SET "%~1=%~nx2"
     EXIT /B 0
+)
 
+REM Calculate the program execution time
+REM Source: https://stackoverflow.com/a/6209392
+:CalcProgramExecTime (
+	SET EndTime=%time%
+
+	FOR /F "tokens=1-4 delims=:.," %%a IN ("%StartTime%") DO (
+		SET start_h=%%a
+		SET /A start_m=100%%b %% 100
+		SET /A start_s=100%%c %% 100
+		SET /A start_ms=100%%d %% 100
+	)
+	FOR /F "tokens=1-4 delims=:.," %%a IN ("%EndTime%") DO (
+		SET end_h=%%a
+		SET /A end_m=100%%b %% 100
+		SET /A end_s=100%%c %% 100
+		SET /A end_ms=100%%d %% 100
+	)
+
+	SET /A hours=%end_h%-%start_h%
+	SET /A mins=%end_m%-%start_m%
+	SET /A secs=%end_s%-%start_s%
+	SET /A ms=%end_ms%-%start_ms%
+	IF %ms% LSS 0 SET /A secs = %secs% - 1 & SET /A ms = 100%ms%
+	if %secs% LSS 0 SET /A mins = %mins% - 1 & SET /A secs = 60%secs%
+	if %mins% LSS 0 SET /A hours = %hours% - 1 & SET /A mins = 60%mins%
+	if %hours% LSS 0 SET /A hours = 24%hours%
+	if 1%ms% LSS 100 SET ms=0%ms%
+
+	REM SET "mins=0%mins%"
+	REM SET "mins=%mins:~-2%"
+	REM SET "secs=0%secs%"
+	REM SET "secs=%secs:~-2%"
+	REM SET "ms=0%ms%"
+	REM SET "ms=%ms:~-2%"
+	CALL :LogUtil "INFO" "Total backup time: %hours% hours, %mins% minutes, %secs% seconds"
+	EXIT /B 0
 )
 
 REM Log an event to both the console and a log file simultaneously
@@ -198,11 +233,9 @@ REM Source: https://stackoverflow.com/a/10719322
 	ECHO.| .\bin\tee.bat %LogFile% 1
     ECHO %DATE% %TIME:~0,-3% %~1 : %~2| .\bin\tee.bat %LogFile% 1
     EXIT /B 0
-
 )
 
 :Error (
 	ECHO.
 	PAUSE
-
 )
