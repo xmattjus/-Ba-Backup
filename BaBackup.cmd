@@ -94,29 +94,29 @@ REM Check if the required system programs are available
 :CheckProgramRequirements (
 	IF NOT EXIST ".\bin\date.exe" (
 		ECHO.
-        ECHO %DATE% %TIME:~0,-3% FATAL : Could not find date.exe, aborting...
-        GOTO :Error
+		ECHO %DATE% %TIME:~0,-3% FATAL : Could not find date.exe, aborting...
+		GOTO :Error
 	)
-	
+
 	IF NOT EXIST ".\bin\7za.exe" (
 		ECHO.
-        ECHO %DATE% %TIME:~0,-3% FATAL : Could not find 7za.exe, aborting...
-        GOTO :Error
+		ECHO %DATE% %TIME:~0,-3% FATAL : Could not find 7za.exe, aborting...
+		GOTO :Error
 	)
 
 	IF NOT EXIST ".\bin\tee.bat" (
 		ECHO.
-        ECHO %DATE% %TIME:~0,-3% FATAL : Could not find tee.bat, aborting...
-        GOTO :Error
+		ECHO %DATE% %TIME:~0,-3% FATAL : Could not find tee.bat, aborting...
+		GOTO :Error
 	)
 
-    CALL where.exe robocopy > NUL 2> NUL
-    IF %ERRORLEVEL% NEQ 0 (
+	CALL where.exe robocopy > NUL 2> NUL
+	IF %ERRORLEVEL% NEQ 0 (
 		ECHO.
-        ECHO %DATE% %TIME:~0,-3% FATAL : Could not find robocopy.exe, aborting...
-        GOTO :Error
-    )
-    EXIT /B 0
+		ECHO %DATE% %TIME:~0,-3% FATAL : Could not find robocopy.exe, aborting...
+		GOTO :Error
+	)
+	EXIT /B 0
 )
 
 REM Get the system region-independent date and time with UnxUtils date.exe (e.g. 20200831_103029)
@@ -130,37 +130,37 @@ REM Get the system region-independent date and time with UnxUtils date.exe (e.g.
 REM Validate the calling argument
 REM Source: https://www.robvanderwoude.com/battech_inputvalidation_commandline.php#ParameterFiles
 :ValidateConfig <ConfigFilePath> ( 
-    IF NOT EXIST "%~1" (
-        CALL :LogUtil "FATAL" "filelist.txt does not exist, aborting..."
-        GOTO :Error
-    )
-
-	IF %~z1==0 (
-        CALL :LogUtil "FATAL" "filelist.txt is empty, aborting..."
-        GOTO :Error
+	IF NOT EXIST "%~1" (
+		CALL :LogUtil "FATAL" "filelist.txt does not exist, aborting..."
+		GOTO :Error
 	)
 
-    FINDSTR /R "& ' `" "%~1" > NUL
-    IF NOT ERRORLEVEL 1 (
+	IF %~z1==0 (
+		CALL :LogUtil "FATAL" "filelist.txt is empty, aborting..."
+		GOTO :Error
+	)
+
+	FINDSTR /R "& ' `" "%~1" > NUL
+	IF NOT ERRORLEVEL 1 (
 		CALL :LogUtil "FATAL" "Invalid characters found in filelist.txt, aborting..."
 		GOTO :Error
-    )
-    EXIT /B 0
+	)
+	EXIT /B 0
 )
 
 REM Map each line of the config file to a string array element (first loop) 
 REM Copy each dir or file contained in the array to the destination (second loop)
 :RoboBackup <ConfigFilePath> (
-    SET /A i=0
+	SET /A i=0
 
 	REM The CALL instruction before the second and third SET commands is intended, no variables will be set otherwise!
-    FOR /F "usebackq delims=" %%a IN ("%~1") DO (
-        SET /A i+=1
-        CALL SET array[%%i%%]=%%a
-        CALL SET n=%%i%%
-    )
+	FOR /F "usebackq delims=" %%a IN ("%~1") DO (
+		SET /A i+=1
+		CALL SET array[%%i%%]=%%a
+		CALL SET n=%%i%%
+	)
 
-    FOR /L %%i IN (1,1,%n%) DO (
+	FOR /L %%i IN (1,1,%n%) DO (
 		CALL :LogUtil "INFO" "Backup of "!array[%%i]!" started..."
 		CALL :IsDir !array[%%i]!
 		IF !ERRORLEVEL! EQU 0 (
@@ -175,7 +175,7 @@ REM Copy each dir or file contained in the array to the destination (second loop
 			CALL :LogUtil "ERROR" "Backup of "!array[%%i]!" failed, skipping..."
 		)
 	)
-    EXIT /B 0
+	EXIT /B 0
 )
 
 REM Check if the input path exists and is a file (exit code 1),
@@ -196,8 +196,8 @@ REM Source: https://stackoverflow.com/a/143935
 REM Get the folder name from an expanded path, e.g. 
 REM "C:\Users\Test\Desktop\New folder - Copy" will output "New Folder - Copy"
 :GetFolderName <ResultVar> <PathVar> (
-    SET "%~1=%~nx2"
-    EXIT /B 0
+	SET "%~1=%~nx2"
+	EXIT /B 0
 )
 
 REM Calculate the program execution time
@@ -222,11 +222,11 @@ REM Source: https://stackoverflow.com/a/6209392
 	SET /A mins=%end_m%-%start_m%
 	SET /A secs=%end_s%-%start_s%
 	SET /A ms=%end_ms%-%start_ms%
-	IF %ms% LSS 0 SET /A secs=%secs% - 1 & SET /A ms=100%ms%
-	if %secs% LSS 0 SET /A mins=%mins% - 1 & SET /A secs=60%secs%
-	if %mins% LSS 0 SET /A hours=%hours% - 1 & SET /A mins=60%mins%
-	if %hours% LSS 0 SET /A hours=24%hours%
-	if 1%ms% LSS 100 SET ms=0%ms%
+	IF %ms% LSS 0 SET /A secs=%secs%-1 & SET /A ms=100%ms%
+	IF %secs% LSS 0 SET /A mins=%mins%-1 & SET /A secs=60%secs%
+	IF %mins% LSS 0 SET /A hours=%hours%-1 & SET /A mins=60%mins%
+	IF %hours% LSS 0 SET /A hours=24%hours%
+	IF 1%ms% LSS 100 SET ms=0%ms%
 
 	CALL :LogUtil "INFO" "Total backup time: %hours% hours, %mins% minutes, %secs% seconds"
 	EXIT /B 0
@@ -239,8 +239,8 @@ REM Both args need to be strings, e.g. CALL :LogUtil "INFO" "Hello World"
 REM Source: https://stackoverflow.com/a/10719322
 :LogUtil <Type> <Description> (
 	ECHO.| .\bin\tee.bat %LogFile% 1
-    ECHO %DATE% %TIME:~0,-3% %~1 : %~2 | .\bin\tee.bat %LogFile% 1
-    EXIT /B 0
+	ECHO %DATE% %TIME:~0,-3% %~1 : %~2 | .\bin\tee.bat %LogFile% 1
+	EXIT /B 0
 )
 
 :Error (
