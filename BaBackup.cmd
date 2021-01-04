@@ -4,9 +4,6 @@ SETLOCAL EnableDelayedExpansion
 REM Get the program start time to calculate the 
 SET StartTime=%TIME%
 
-REM Check if current Windows version is supported
-CALL :CheckWindowsVersion
-
 REM Check if required binaries exist
 CALL :CheckProgramRequirements
 
@@ -14,11 +11,11 @@ REM Get the current system date and time
 CALL :GetDateTime DateTime
 
 REM Program variables
-SET ProgName="[Ba]Backup V0.8.1"
+SET ProgName="[Ba]Backup V1.0.0"
 SET ProgramDir=%~dp0
 SET ConfigFileName=filelist.txt
 SET DestDir="C:\BaBackup"
-SET TempDir=%TEMP%\BaBackup_%DateTime%
+SET TempDir=%TEMP%\Backup_%DateTime%
 SET LogDir=%LOCALAPPDATA%\BaBackup
 SET LogFile="%LogDir%\BaBackup_%DateTime%.log"
 SET /A FileBackupCount=0
@@ -63,7 +60,7 @@ REM Create a compressed archive (7z format) of the backup,
 REM if at least one file or folder has been copied successfully
 IF NOT %FileBackupCount% EQU 0 (
 	CALL :LogUtil "INFO" "Compressing backup..."
-	.\bin\7za.exe a -t7z -mmt=2 -bso1 -bse1 -bsp1 %DestDir%\BaBackup_%DateTime%.7z %TempDir% | .\bin\tee.bat %LogFile% 1
+	.\bin\7za.exe a -t7z -mmt=2 -bso1 -bse1 -bsp1 %DestDir%\Backup_%DateTime%.7z %TempDir% | .\bin\tee.bat %LogFile% 1
 )
 
 REM Delete the temp folder
@@ -72,23 +69,10 @@ RD /S /Q "%TempDir%" | .\bin\tee.bat %LogFile% 1
 
 REM Program end
 CALL :CalcProgramExecTime
-CALL :LogUtil "INFO" "Backup completed successfully, number of files and folders backuped up: %FileBackupCount%"
+CALL :LogUtil "INFO" "Backup completed successfully"
 
 ENDLOCAL
 EXIT /B 0
-
-REM Windows versions below 6.1 (e.g. prior to Windows 7) are not supported
-REM Source: https://stackoverflow.com/a/25978837
-:CheckWindowsVersion (
-	FOR /F "tokens=4-7 delims=[.] " %%i IN ('ver') DO (IF %%i==Version (SET version=%%j.%%k) ELSE (SET version=%%i.%%j))
-	IF "%version%" == "6.1" EXIT /B 0
-	IF "%version%" == "6.2" EXIT /B 0
-	IF "%version%" == "6.3" EXIT /B 0
-	IF "%version%" == "10.0" EXIT /B 0
-	ECHO.
-	ECHO %DATE% %TIME:~0,-3% FATAL : Unsupported Windows version detected, aborting...
-	GOTO :Error
-)
 
 REM Check if the required system programs are available
 :CheckProgramRequirements (
@@ -165,7 +149,7 @@ REM Copy each dir or file contained in the array to the destination (second loop
 		CALL :IsDir !array[%%i]!
 		IF !ERRORLEVEL! EQU 0 (
 			CALL :GetFolderName FolderName !array[%%i]!
-			CALL ROBOCOPY !array[%%i]! "%TempDir%\!FolderName!" /S /E /Z /FFT /R:5 /TBD /MT:16 /V /NS /NC /NP /NJH /NJS | .\bin\tee.bat %LogFile% 1
+			CALL ROBOCOPY !array[%%i]! "%TempDir%\!FolderName!" /S /E /Z /FFT /R:3 /W:1 /TBD /MT:16 /V /NS /NC /NFL /NDL /NP /NJH /NJS  | .\bin\tee.bat %LogFile% 1
 			REM Increment counter only on successful copy
 			IF !ERRORLEVEL! LSS 8 SET /A FileBackupCount+=1
 		) ELSE IF !ERRORLEVEL! EQU 1 (
