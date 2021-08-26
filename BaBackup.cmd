@@ -11,7 +11,7 @@ REM Get the current system date and time
 CALL :GetDateTime DateTime
 
 REM Program variables
-SET ProgName="[Ba]Backup V1.0.1"
+SET ProgName="[Ba]Backup V1.1"
 SET ProgramDir=%~dp0
 SET ConfigFileName=filelist.txt
 SET DestDir="C:\BaBackup"
@@ -62,7 +62,7 @@ REM Create a compressed archive (7z format) of the backup,
 REM if at least one file or folder has been copied successfully
 IF NOT %FileBackupCount% EQU 0 (
 	CALL :LogUtil "INFO" "Compressing backup..."
-	.\bin\7za.exe a -t7z -mmt=2 -bso1 -bse1 -bsp1 %DestDir%\Backup_%DateTime%.7z %TempDir% | .\bin\tee.bat %LogFile% 1
+	.\bin\7za.exe a -t7z -mmt=2 -bb0 -v512m %DestDir%\Backup_%DateTime%.7z %TempDir% | .\bin\tee.bat %LogFile% 1
 )
 
 REM Delete the temp folder
@@ -175,18 +175,20 @@ REM Backup each dir or file contained in the array (second loop)
 REM Use a separate fuction to backup each dir or file
 REM This way we can use the 8.3 filename for each item to backup as robocopy or xcopy argument
 :StartBackup <Path> (
-	CALL :LogUtil "INFO" "Backup of %~1 started..."
 	CALL :IsDir %~s1
 	IF !ERRORLEVEL! EQU 0 (
-		CALL :GetFolderName FolderName "%~1"
-		CALL ROBOCOPY %~s1 "%TempDir%\!FolderName!" /S /E /Z /FFT /R:3 /W:1 /TBD /MT:16 /V /NS /NC /NFL /NDL /NP /NJH /NJS  | .\bin\tee.bat %LogFile% 1
+		CALL :LogUtil "INFO" "Backup of %~1\ started..."
+		CALL :GetSourcePath "%~1" FolderName
+		CALL ROBOCOPY "%~s1 " "%TempDir%\!FolderName! " /S /E /Z /FFT /R:3 /W:1 /TBD /MT:16 /NS /NC /NFL /NDL /NP /NJH /NJS /LOG+:%LogFile% /TEE
 		REM Increment counter only on successful copy
 		IF !ERRORLEVEL! LSS 8 (
 			SET /A FileBackupCount+=1
 			EXIT /B 0
 		)
 	) ELSE IF !ERRORLEVEL! EQU 1 (
-		CALL XCOPY %~s1 %TempDir% | .\bin\tee.bat %LogFile% 1
+		CALL :LogUtil "INFO" "Backup of %~1 started..."
+		CALL :GetParentPath "%~1" FolderName
+		CALL XCOPY %~s1 %TempDir%\!FolderName! | .\bin\tee.bat %LogFile% 1
 		SET /A FileBackupCount+=1
 		EXIT /B 0
 	) ELSE (
@@ -195,10 +197,11 @@ REM This way we can use the 8.3 filename for each item to backup as robocopy or 
 	)
 )
 
-REM Check if the input path exists and is a file (exit code 1),
-REM exists and is a folder (exit code 0) or is not a valid path (exit code 2)
+REM Check if the input <Path> variable is a folder (exit code 0),
+REM is a file (exit code 1),
+REM or is not a valid path (exit code 2)
 REM Source: https://stackoverflow.com/a/143935
-: IsDir <Path> (
+:IsDir <Path> (
 	FOR /F "delims=" %%i IN ("%~1") DO SET MyPath="%%~si"
 	PUSHD %MyPath% > NUL 2> NUL
 	IF ERRORLEVEL 1 (
@@ -210,10 +213,29 @@ REM Source: https://stackoverflow.com/a/143935
 	)
 )
 
-REM Get the folder name from an expanded path, e.g. 
-REM "C:\Users\Test\Desktop\New folder - Copy" will output "New Folder - Copy"
-:GetFolderName <ResultVar> <PathVar> (
-	SET "%~1=%~nx2"
+REM Clean the input <InputPath> variable from the drive ":" character, e.g. 
+REM "C:\Users\User\Desktop" will output "C$\Users\User\Desktop"
+:GetSourcePath <InputPath> <OutputPath> (
+	SET _drive=%~d1
+	SET _path=%~pnx1
+	IF NOT "%_drive:~0,2%" EQU "\\" (
+		SET _drive2=%_drive:~0,1%
+		SET _drive=!_drive2!$
+	)
+	SET "%~2=%_drive%%_path%"
+	EXIT /B 0
+)
+
+REM Clean the input <InputPath> variable from the drive ":" character, e.g. 
+REM "C:\Users\User\Desktop" will output "C$\Users\User\Desktop"
+:GetParentPath <InputPath> <OutputPath> (
+	SET _drive=%~d1
+	SET _path=%~p1
+	IF NOT "%_drive:~0,2%" EQU "\\" (
+		SET _drive2=%_drive:~0,1%
+		SET _drive=!_drive2!$
+	)
+	SET "%~2=%_drive%%_path%"
 	EXIT /B 0
 )
 
