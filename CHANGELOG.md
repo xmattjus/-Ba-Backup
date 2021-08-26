@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1](https://github.com/xmattjus/BaBackup/tree/HEAD) (2021/08/26)
+
+**Improvements:**
+
+- The source folder structure will be replicated in the backup folder now, e.g. "C:\Users\User\Desktop" -> "%temp%\C$\Users\User\Desktop"
+- Improve network path detection
+- Split backup archive in multiple 512 megabytes parts
+
+**Fixed bugs:**
+
+- Fix blank space in IsDir function name ": IsDir" -> ":IsDir"
+- Replace the drive letter colon character with a dollar sign, e.g. "C:\Users\User\Desktop" -> "C$\Users\User\Desktop"
+
 ## [1.0.1](https://github.com/xmattjus/BaBackup/tree/HEAD) (2021/03/04)
 
 **Improvements:**
